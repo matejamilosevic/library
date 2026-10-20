@@ -147,7 +147,7 @@ function renderCatalog(books) {
     var actions = available > 0
       ? '<button type="button" data-action="checkout" data-book-id="' + book.id + '">Check out</button>'
       : '<button type="button" data-action="hold" data-book-id="' + book.id + '">Hold</button><button type="button" data-action="reserve" data-book-id="' + book.id + '">Reserve</button>';
-    return '<tr data-book-id="' + book.id + '"><td>' + escapeHtml(book.title) + '</td><td class="author">' + escapeHtml(book.author) + '</td><td class="available" data-available="' + available + '">' + availabilityLabel(available) + '</td><td class="actions">' + actions + '</td></tr>';
+    return '<tr data-book-id="' + book.id + '"><td>' + escapeHtml(book.title) + '</td><td class="author">' + escapeHtml(book.author) + '</td><td class="isbn">' + escapeHtml(book.isbn) + '</td><td class="available" data-available="' + available + '">' + availabilityLabel(available) + '</td><td class="actions">' + actions + '</td></tr>';
   }).join('');
 }
 
@@ -362,7 +362,7 @@ export function renderDeskHtml(): string {
   const catalogRows = listBooks()
     .map((book) => {
       const available = availableCopies(book.id);
-      return `<tr data-book-id="${escapeHtml(book.id)}"><td>${escapeHtml(book.title)}</td><td class="author">${escapeHtml(book.author)}</td><td class="available" data-available="${available}">${availabilityLabel(available)}</td><td class="actions"></td></tr>`;
+      return `<tr data-book-id="${escapeHtml(book.id)}"><td>${escapeHtml(book.title)}</td><td class="author">${escapeHtml(book.author)}</td><td class="isbn">${escapeHtml(book.isbn)}</td><td class="available" data-available="${available}">${availabilityLabel(available)}</td><td class="actions"></td></tr>`;
     })
     .join('');
 
@@ -512,7 +512,7 @@ export function renderDeskHtml(): string {
       <h2>Catalog</h2>
       <table>
         <thead>
-          <tr><th>Title</th><th>Author</th><th>Available</th><th></th></tr>
+          <tr><th>Title</th><th>Author</th><th>ISBN</th><th>Available</th><th></th></tr>
         </thead>
         <tbody id="catalog">
           ${catalogRows}
