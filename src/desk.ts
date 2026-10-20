@@ -21,6 +21,7 @@ var signinPassword = document.querySelector('#signin-password');
 var signupUsername = document.querySelector('#signup-username');
 var signupPassword = document.querySelector('#signup-password');
 var patronView = document.querySelector('#patron-view');
+var patronActivity = document.querySelector('#patron-activity');
 var activeMemberEl = document.querySelector('#active-member');
 var signoutBtn = document.querySelector('#signout-btn');
 var catalog = document.querySelector('#catalog');
@@ -98,7 +99,10 @@ function showSignedOut() {
   signinForm.hidden = false;
   signupForm.hidden = false;
   patronView.hidden = true;
+  patronActivity.hidden = true;
   signoutBtn.hidden = true;
+  var actionCells = catalog.querySelectorAll('.actions');
+  for (var i = 0; i < actionCells.length; i++) actionCells[i].textContent = '';
 }
 
 function showSignedIn(account) {
@@ -107,6 +111,7 @@ function showSignedIn(account) {
   signinForm.hidden = true;
   signupForm.hidden = true;
   patronView.hidden = false;
+  patronActivity.hidden = false;
   signoutBtn.hidden = false;
 }
 
@@ -142,7 +147,7 @@ function renderCatalog(books) {
     var actions = available > 0
       ? '<button type="button" data-action="checkout" data-book-id="' + book.id + '">Check out</button>'
       : '<button type="button" data-action="hold" data-book-id="' + book.id + '">Hold</button><button type="button" data-action="reserve" data-book-id="' + book.id + '">Reserve</button>';
-    return '<tr data-book-id="' + book.id + '"><td>' + escapeHtml(book.title) + '</td><td class="available" data-available="' + available + '">' + availabilityLabel(available) + '</td><td class="actions">' + actions + '</td></tr>';
+    return '<tr data-book-id="' + book.id + '"><td>' + escapeHtml(book.title) + '</td><td class="author">' + escapeHtml(book.author) + '</td><td class="available" data-available="' + available + '">' + availabilityLabel(available) + '</td><td class="actions">' + actions + '</td></tr>';
   }).join('');
 }
 
@@ -357,7 +362,7 @@ export function renderDeskHtml(): string {
   const catalogRows = listBooks()
     .map((book) => {
       const available = availableCopies(book.id);
-      return `<tr data-book-id="${escapeHtml(book.id)}"><td>${escapeHtml(book.title)}</td><td class="available" data-available="${available}">${availabilityLabel(available)}</td><td class="actions"></td></tr>`;
+      return `<tr data-book-id="${escapeHtml(book.id)}"><td>${escapeHtml(book.title)}</td><td class="author">${escapeHtml(book.author)}</td><td class="available" data-available="${available}">${availabilityLabel(available)}</td><td class="actions"></td></tr>`;
     })
     .join('');
 
@@ -437,6 +442,7 @@ export function renderDeskHtml(): string {
     th, td { text-align: left; padding: 10px 8px; border-top: 1px solid var(--line); vertical-align: middle; }
     th { color: var(--muted); font-weight: 500; border-top: 0; }
     .actions, .due, .status { white-space: nowrap; }
+    .author { white-space: normal; }
     button {
       margin: 0 8px 8px 0;
       padding: 7px 12px;
@@ -501,17 +507,19 @@ export function renderDeskHtml(): string {
         <p>Signed in as <span id="active-member"></span></p>
         <button type="button" id="signout-btn" hidden>Sign out</button>
       </div>
-      <section>
-        <h2>Catalog</h2>
-        <table>
-          <thead>
-            <tr><th>Title</th><th>Available</th><th></th></tr>
-          </thead>
-          <tbody id="catalog">
-            ${catalogRows}
-          </tbody>
-        </table>
-      </section>
+    </div>
+    <section>
+      <h2>Catalog</h2>
+      <table>
+        <thead>
+          <tr><th>Title</th><th>Author</th><th>Available</th><th></th></tr>
+        </thead>
+        <tbody id="catalog">
+          ${catalogRows}
+        </tbody>
+      </table>
+    </section>
+    <div id="patron-activity" hidden>
       <section>
         <h2>Loans</h2>
         <p id="loans-empty" class="empty">No current loans.</p>

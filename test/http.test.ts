@@ -152,6 +152,22 @@ describe('library desk', () => {
     expect(html).not.toContain('reservation.expiresAt');
   });
 
+  it('shows the author beside each catalog title before sign-in', () => {
+    const html = deskPage();
+
+    expect(html).toContain('<tr><th>Title</th><th>Author</th><th>Available</th><th></th></tr>');
+    expect(html).toContain('<td>The Odyssey</td><td class="author">Homer</td><td class="available" data-available="2">');
+    expect(html).toContain('<td>Pride and Prejudice</td><td class="author">Jane Austen</td>');
+    expect(html).toContain('<td>A Short History of Nearly Everything</td><td class="author">Bill Bryson</td>');
+    expect(html).toContain('<td>Frankenstein</td><td class="author">Mary Shelley</td>');
+    expect(html).toContain('escapeHtml(book.author)');
+    expect(html).toContain('.author { white-space: normal; }');
+    expect(html.indexOf('<h2>Catalog</h2>')).toBeGreaterThan(html.indexOf('id="patron-view"'));
+    expect(html.indexOf('id="patron-activity"')).toBeGreaterThan(html.indexOf('<h2>Catalog</h2>'));
+    expect(html.slice(html.indexOf('id="patron-activity"'), html.indexOf('<h2>Loans</h2>'))).toContain('hidden');
+    expect(html).not.toContain('<th>ISBN</th>');
+  });
+
   it('displays the updated welcome line directly under the Library desk heading', () => {
     const html = deskPage();
 
@@ -496,6 +512,32 @@ describe('desk authentication', () => {
     expect(control(window, '#signout-btn').hidden).toBe(true);
     expect(error.hidden).toBe(false);
     expect(error.textContent).toContain('Sign-in failed');
+  });
+
+  it('keeps the author beside the title after sign-in and drops checkout actions on sign-out', async () => {
+    const { window } = openDesk(() => sessionFor('m-1', 'ada'));
+    const row = () => control(window, '#catalog tr[data-book-id="b-1"]');
+
+    expect(row().querySelector('.author')?.textContent).toBe('Homer');
+    expect(row().querySelector('button')).toBeNull();
+    expect(control(window, '#patron-activity').hidden).toBe(true);
+
+    field(window, '#signin-username').value = 'ada';
+    field(window, '#signin-password').value = 'secretpass123';
+    await submitForm(window, '#signin-form');
+
+    expect(row().querySelector('.author')?.textContent).toBe('Homer');
+    expect(row().querySelector('button[data-action="checkout"]')).toBeTruthy();
+    expect(control(window, '#patron-activity').hidden).toBe(false);
+    expect(control(window, '#loans').textContent).not.toContain('Homer');
+    expect(control(window, '#queue').textContent).not.toContain('Homer');
+
+    control(window, '#signout-btn').click();
+    await settle(window);
+
+    expect(row().querySelector('.author')?.textContent).toBe('Homer');
+    expect(row().querySelector('button')).toBeNull();
+    expect(control(window, '#patron-activity').hidden).toBe(true);
   });
 
   it('signs in an existing patron and shows that username', async () => {
