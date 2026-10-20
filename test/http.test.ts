@@ -168,6 +168,39 @@ describe('library desk', () => {
     expect(html).not.toContain('<th>ISBN</th>');
   });
 
+  it('displays the updated welcome line directly under the Library desk heading', () => {
+    const html = deskPage();
+
+    expect(html).toMatch(
+      /<h1>Library desk<\/h1>\s*<p class="lede">Sign in to borrow a book, return it, or join the waitlist\.<\/p>/,
+    );
+    expect(html).not.toContain('Sign in to borrow, return, and wait for a copy.');
+  });
+
+  it('keeps the welcome sentence in the lede without changing other desk copy', () => {
+    const html = deskPage();
+    const style = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+    const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? '';
+    const welcome = 'Sign in to borrow a book, return it, or join the waitlist.';
+
+    expect(html.match(/<h1>([^<]*)<\/h1>/)?.[1]).toBe('Library desk');
+    expect(html.split(welcome)).toHaveLength(2);
+    expect(style).not.toContain(welcome);
+    expect(script).not.toContain(welcome);
+    expect(html).toContain('<h2>Sign in</h2>');
+    expect(html).toContain('<h2>Create an account</h2>');
+    expect(html).toContain('id="signin-form"');
+    expect(html).toContain('id="signup-form"');
+    expect(html).toContain('>Sign in</button>');
+    expect(html).toContain('>Create account</button>');
+    expect(html).toContain('>Sign out</button>');
+    expect(html).toContain('>Check out</button>');
+    expect(html).toContain('<h2>Catalog</h2>');
+    expect(html).toContain('<h2>Loans</h2>');
+    expect(html).toContain('<h2>Holds and reservations</h2>');
+    expect(style).toContain('@media (max-width: 640px)');
+  });
+
   it('loads the signed-in member loans and holds', () => {
     handleRequest('POST', '/loans', { bookId: 'b-1', memberId: 'm-2' }, authHeaders('m-2'));
     drainCopies('b-4', 'm-3');

@@ -481,7 +481,7 @@ export function renderDeskHtml(): string {
   <main>
     <header>
       <h1>Library desk</h1>
-      <p class="lede">Sign in to borrow, return, and wait for a copy.</p>
+      <p class="lede">Sign in to borrow a book, return it, or join the waitlist.</p>
     </header>
     <p id="error" role="alert" hidden></p>
     <div class="auth-forms">
