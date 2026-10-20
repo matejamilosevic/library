@@ -442,6 +442,7 @@ export function renderDeskHtml(): string {
     th, td { text-align: left; padding: 10px 8px; border-top: 1px solid var(--line); vertical-align: middle; }
     th { color: var(--muted); font-weight: 500; border-top: 0; }
     .actions, .due, .status { white-space: nowrap; }
+    .author { white-space: normal; }
     button {
       margin: 0 8px 8px 0;
       padding: 7px 12px;

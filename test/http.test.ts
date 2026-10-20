@@ -161,6 +161,7 @@ describe('library desk', () => {
     expect(html).toContain('<td>A Short History of Nearly Everything</td><td class="author">Bill Bryson</td>');
     expect(html).toContain('<td>Frankenstein</td><td class="author">Mary Shelley</td>');
     expect(html).toContain('escapeHtml(book.author)');
+    expect(html).toContain('.author { white-space: normal; }');
     expect(html.indexOf('<h2>Catalog</h2>')).toBeGreaterThan(html.indexOf('id="patron-view"'));
     expect(html.indexOf('id="patron-activity"')).toBeGreaterThan(html.indexOf('<h2>Catalog</h2>'));
     expect(html.slice(html.indexOf('id="patron-activity"'), html.indexOf('<h2>Loans</h2>'))).toContain('hidden');
