@@ -17,7 +17,7 @@ import {
 } from './reservations.js';
 import type { BookId, Loan, LoanId, MemberId } from './types.js';
 
-const LOAN_DAYS = 21;
+const LOAN_DAYS = 60;
 const loans = new Map<LoanId, Loan>();
 let sequence = 0;
 

@@ -226,15 +226,15 @@ describe('library desk', () => {
     expect(handleRequest('GET', '/members/m-3/reservations', undefined, authHeaders('m-3')).body).toEqual({ reservations: [] });
   });
 
-  it('checks out a copy for 21 days and decrements availability', () => {
+  it('checks out a copy for 60 days and decrements availability', () => {
     const created = handleRequest('POST', '/loans', { bookId: 'b-1', memberId: 'm-1' }, authHeaders('m-1'));
     const loan = loanFrom(created.body);
 
     expect(created.status).toBe(201);
-    expect(loan.dueAt).toBe(todayIsoDate(21));
+    expect(loan.dueAt).toBe(todayIsoDate(60));
     expect(handleRequest('GET', '/books/b-1').body).toMatchObject({ availableCopies: 1 });
     expect(handleRequest('GET', '/members/m-1/loans', undefined, authHeaders('m-1')).body).toMatchObject({
-      loans: [expect.objectContaining({ id: loan.id, bookId: 'b-1', dueAt: todayIsoDate(21), returnedAt: null })],
+      loans: [expect.objectContaining({ id: loan.id, bookId: 'b-1', dueAt: todayIsoDate(60), returnedAt: null })],
     });
     expect(deskPage()).toContain('data-available="1"');
   });
@@ -272,7 +272,7 @@ describe('library desk', () => {
     });
   });
 
-  it('picks up a notified hold as a 21-day loan', () => {
+  it('picks up a notified hold as a 60-day loan', () => {
     const loan = handleRequest('POST', '/loans', { bookId: 'b-2', memberId: 'm-1' }, authHeaders('m-1'));
     handleRequest('POST', '/holds', { bookId: 'b-2', memberId: 'm-2' }, authHeaders('m-2'));
     handleRequest('POST', `/loans/${loanFrom(loan.body).id}/return`, undefined, authHeaders('m-1'));
@@ -283,7 +283,7 @@ describe('library desk', () => {
     expect(loanFrom(pickup.body)).toMatchObject({
       bookId: 'b-2',
       memberId: 'm-2',
-      dueAt: todayIsoDate(21),
+      dueAt: todayIsoDate(60),
       returnedAt: null,
     });
     expect(handleRequest('GET', '/members/m-2/holds', undefined, authHeaders('m-2')).body).toMatchObject({
@@ -346,7 +346,7 @@ describe('library desk', () => {
     const pickup = handleRequest('POST', '/loans', { bookId: 'b-2', memberId: 'm-1' }, authHeaders('m-1'));
 
     expect(pickup.status).toBe(201);
-    expect(loanFrom(pickup.body).dueAt).toBe(todayIsoDate(21));
+    expect(loanFrom(pickup.body).dueAt).toBe(todayIsoDate(60));
     expect(handleRequest('GET', '/members/m-1/reservations', undefined, authHeaders('m-1')).body).toMatchObject({
       reservations: [expect.objectContaining({ status: 'fulfilled' })],
     });
@@ -357,7 +357,7 @@ describe('library desk', () => {
 
     const loan = handleRequest('POST', '/loans', { bookId: 'b-2', memberId: 'm-1' }, authHeaders('m-1'));
     expect(loan.status).toBe(201);
-    expect(loanFrom(loan.body).dueAt).toBe(todayIsoDate(21));
+    expect(loanFrom(loan.body).dueAt).toBe(todayIsoDate(60));
     expect(handleRequest('GET', '/books/b-2').body).toMatchObject({ availableCopies: 0 });
 
     const hold = handleRequest('POST', '/holds', { bookId: 'b-2', memberId: 'm-2' }, authHeaders('m-2'));
@@ -369,7 +369,7 @@ describe('library desk', () => {
     });
 
     const pickup = handleRequest('POST', '/loans', { bookId: 'b-2', memberId: 'm-2' }, authHeaders('m-2'));
-    expect(loanFrom(pickup.body)).toMatchObject({ memberId: 'm-2', bookId: 'b-2', dueAt: todayIsoDate(21) });
+    expect(loanFrom(pickup.body)).toMatchObject({ memberId: 'm-2', bookId: 'b-2', dueAt: todayIsoDate(60) });
     expect(handleRequest('GET', '/members/m-2/holds', undefined, authHeaders('m-2')).body).toMatchObject({
       holds: [expect.objectContaining({ status: 'fulfilled' })],
     });
@@ -578,7 +578,9 @@ describe('desk authentication', () => {
       expect(call?.headers.Authorization).toMatch(bearer);
     }
     expect(control(window, '#loans').innerHTML).toContain('The Odyssey');
-    expect(control(window, '#loans').innerHTML).toContain('Due ');
+    expect(control(window, '#loans').innerHTML).toContain(`Due ${todayIsoDate(60)}`);
+    expect(control(window, '#loans').innerHTML).toContain('60 days remaining');
+    expect(control(window, '#loans').innerHTML).toContain('>Return</button>');
     expect(control(window, '#queue').innerHTML).toContain('Frankenstein');
     expect(control(window, '#queue').innerHTML).toContain('waiting');
     expect(control(window, '#loans-empty').hidden).toBe(true);
@@ -696,7 +698,8 @@ describe('desk authentication', () => {
     const checkoutCall = calls.find((entry) => entry.method === 'POST' && entry.pathname === '/loans');
     expect(checkoutCall?.status).toBe(201);
     expect(control(window, '#loans').innerHTML).toContain('The Odyssey');
-    expect(control(window, '#loans').innerHTML).toContain('Due ');
+    expect(control(window, '#loans').innerHTML).toContain(`Due ${todayIsoDate(60)}`);
+    expect(control(window, '#loans').innerHTML).toContain('60 days remaining');
 
     const activity = calls.find((entry) => entry.method === 'GET' && entry.pathname.endsWith('/loans'));
     control(window, '#signout-btn').click();
@@ -709,5 +712,70 @@ describe('desk authentication', () => {
     expect(handleRequest('GET', activity?.pathname ?? '', undefined, {
       authorization: activity?.headers.Authorization,
     }).status).toBe(401);
+  });
+
+  it('indicates overdue status for loans due today or in the past', async () => {
+    handleRequest('POST', '/loans', { bookId: 'b-1', memberId: 'm-2' }, authHeaders('m-2'));
+    handleRequest('POST', '/loans', { bookId: 'b-3', memberId: 'm-2' }, authHeaders('m-2'));
+    const { window } = openDesk(() => sessionFor('m-2', 'alan'));
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await originalFetch(input, init);
+      const pathname = new URL(requestUrl(input), 'http://localhost').pathname;
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (method === 'GET' && pathname === '/members/m-2/loans') {
+        const payload = (await response.json()) as { loans: Array<{ bookId: string; dueAt: string }> };
+        const dueByBook: Record<string, string> = { 'b-1': todayIsoDate(0), 'b-3': todayIsoDate(-3) };
+        for (const loan of payload.loans) {
+          if (dueByBook[loan.bookId]) loan.dueAt = dueByBook[loan.bookId];
+        }
+        return new window.Response(JSON.stringify(payload), {
+          status: response.status,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return response;
+    };
+
+    field(window, '#signin-username').value = 'alan';
+    field(window, '#signin-password').value = 'secretpass123';
+    await submitForm(window, '#signin-form');
+
+    const html = control(window, '#loans').innerHTML;
+    expect(html).toContain(`Due ${todayIsoDate(0)}`);
+    expect(html).toContain(`Due ${todayIsoDate(-3)}`);
+    expect(html.match(/Overdue/g)).toHaveLength(2);
+    expect(html).not.toMatch(/\d+ days remaining/);
+  });
+
+  it('signs up, checks out a 60-day loan, and returns to the empty loans notice', async () => {
+    const { window, calls } = openDesk();
+    field(window, '#signup-username').value = 'countdown_patron';
+    field(window, '#signup-password').value = 'countdown_pass_123';
+    await submitForm(window, '#signup-form');
+
+    control(window, 'button[data-action="checkout"][data-book-id="b-1"]').click();
+    await settle(window);
+
+    const checkoutCall = calls.find((entry) => entry.method === 'POST' && entry.pathname === '/loans');
+    expect(checkoutCall?.status).toBe(201);
+    const loansCall = calls.find((entry) => entry.method === 'GET' && entry.pathname.endsWith('/loans'));
+    expect(handleRequest('GET', loansCall?.pathname ?? '', undefined, {
+      authorization: loansCall?.headers.Authorization,
+    }).body).toMatchObject({
+      loans: [expect.objectContaining({ dueAt: todayIsoDate(60), returnedAt: null })],
+    });
+    expect(control(window, '#loans').innerHTML).toContain('The Odyssey');
+    expect(control(window, '#loans').innerHTML).toContain(`Due ${todayIsoDate(60)}`);
+    expect(control(window, '#loans').innerHTML).toContain('60 days remaining');
+
+    control(window, 'button[data-action="return"]').click();
+    await settle(window);
+
+    const returnCall = calls.find((entry) => entry.method === 'POST' && entry.pathname.includes('/return'));
+    expect(returnCall?.status).toBe(200);
+    expect(control(window, '#loans').querySelector('li')).toBeNull();
+    expect(control(window, '#loans-empty').hidden).toBe(false);
+    expect(control(window, '#loans-empty').textContent).toBe('No current loans.');
   });
 });
