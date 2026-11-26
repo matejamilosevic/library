@@ -77,7 +77,9 @@ export type Hold = {
   sequenceRank: number;
 };
 
-export type Notification = {
+export type LoanReminderThreshold = 10 | 5 | 3 | 1;
+
+export type HoldNotification = {
   id: NotificationId;
   memberId: MemberId;
   holdId: HoldId;
@@ -85,7 +87,22 @@ export type Notification = {
   createdAt: string;
   expiresAt: string;
   message: string;
+  kind?: 'hold';
 };
+
+export type LoanReminderNotification = {
+  id: NotificationId;
+  memberId: MemberId;
+  loanId: LoanId;
+  bookId: BookId;
+  dueAt: string;
+  thresholdDays: LoanReminderThreshold;
+  createdAt: string;
+  message: string;
+  kind: 'loan_reminder';
+};
+
+export type Notification = HoldNotification | LoanReminderNotification;
 
 export type Reservation = {
   id: ReservationId;

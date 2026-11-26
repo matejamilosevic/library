@@ -158,7 +158,7 @@ function daysRemainingUntil(dueAt) {
   return Math.round((dueMs - todayMs) / 86400000);
 }
 
-function renderLoans(loans, books) {
+function renderLoans(loans, books, notifications) {
   var active = loans.filter(function (loan) { return loan.returnedAt === null; });
   loansEmpty.hidden = active.length > 0;
   loansEl.innerHTML = active.map(function (loan) {
@@ -166,7 +166,12 @@ function renderLoans(loans, books) {
     var status = daysRemaining > 0
       ? '<span class="remaining">' + daysRemaining + ' days remaining</span>'
       : '<span class="overdue">Overdue</span>';
-    return '<li data-loan-id="' + loan.id + '"><span class="loan-title">' + escapeHtml(bookTitle(books, loan.bookId)) + '</span><span class="due">Due ' + loan.dueAt + '</span>' + status + '<button type="button" data-action="return" data-loan-id="' + loan.id + '">Return</button></li>';
+    var reminders = (notifications || []).filter(function (notification) {
+      return notification.kind === 'loan_reminder' && notification.loanId === loan.id;
+    }).map(function (notification) {
+      return '<p class="return-reminder">' + escapeHtml(notification.message) + '</p>';
+    }).join('');
+    return '<li data-loan-id="' + loan.id + '"><span class="loan-title">' + escapeHtml(bookTitle(books, loan.bookId)) + '</span><span class="due">Due ' + loan.dueAt + '</span>' + status + reminders + '<button type="button" data-action="return" data-loan-id="' + loan.id + '">Return</button></li>';
   }).join('');
 }
 
@@ -210,7 +215,8 @@ async function refresh() {
       fetch('/books'),
       fetch('/members/' + memberId + '/loans', { headers: activityHeaders }),
       fetch('/members/' + memberId + '/holds', { headers: activityHeaders }),
-      fetch('/members/' + memberId + '/reservations', { headers: activityHeaders })
+      fetch('/members/' + memberId + '/reservations', { headers: activityHeaders }),
+      fetch('/members/' + memberId + '/notifications', { headers: activityHeaders })
     ]);
     if (token !== refreshToken) return;
     var unauthorized = responses.slice(1).some(function (response) { return response.status === 401; });
@@ -230,9 +236,10 @@ async function refresh() {
     var loans = await readJson(responses[1]);
     var holds = await readJson(responses[2]);
     var reservations = await readJson(responses[3]);
+    var notifications = await readJson(responses[4]);
     if (token !== refreshToken) return;
     renderCatalog(books.books || []);
-    renderLoans(loans.loans || [], books.books || []);
+    renderLoans(loans.loans || [], books.books || [], notifications.notifications || []);
     renderQueue(holds.holds || [], reservations.reservations || [], books.books || []);
   } catch (error) {
     if (token !== refreshToken) return;

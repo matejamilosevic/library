@@ -224,6 +224,57 @@ describe('library desk', () => {
     expect(handleRequest('GET', '/members/m-3/loans', undefined, authHeaders('m-3')).body).toEqual({ loans: [] });
     expect(handleRequest('GET', '/members/m-3/holds', undefined, authHeaders('m-3')).body).toEqual({ holds: [] });
     expect(handleRequest('GET', '/members/m-3/reservations', undefined, authHeaders('m-3')).body).toEqual({ reservations: [] });
+    expect(handleRequest('GET', '/members/m-3/notifications', undefined, authHeaders('m-3'))).toEqual({
+      status: 200,
+      body: { notifications: [] },
+    });
+  });
+
+  it('returns loan return reminders alongside hold notifications', () => {
+    const borrowed = handleRequest('POST', '/loans', { bookId: 'b-2', memberId: 'm-2' }, authHeaders('m-2'));
+    handleRequest('POST', '/holds', { bookId: 'b-2', memberId: 'm-1' }, authHeaders('m-1'));
+    handleRequest('POST', `/loans/${loanFrom(borrowed.body).id}/return`, undefined, authHeaders('m-2'));
+    const created = handleRequest('POST', '/loans', { bookId: 'b-1', memberId: 'm-1' }, authHeaders('m-1'));
+    const loan = loanFrom(created.body);
+    loan.dueAt = todayIsoDate(10);
+
+    expect(handleRequest('GET', '/members/m-1/loans', undefined, authHeaders('m-1')).status).toBe(200);
+    const first = handleRequest('GET', '/members/m-1/notifications', undefined, authHeaders('m-1'));
+    const second = handleRequest('GET', '/members/m-1/notifications', undefined, authHeaders('m-1'));
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const notifications = (second.body as { notifications: Array<Record<string, unknown>> }).notifications;
+    expect(notifications.filter((notification) => notification.bookId === 'b-2' && notification.holdId)).toHaveLength(1);
+    const reminders = notifications.filter((notification) => notification.kind === 'loan_reminder');
+    expect(reminders).toHaveLength(1);
+    expect(reminders[0]).toMatchObject({
+      kind: 'loan_reminder',
+      loanId: loan.id,
+      bookId: 'b-1',
+      dueAt: loan.dueAt,
+      thresholdDays: 10,
+    });
+    expect(String(reminders[0]?.message)).toContain(loan.dueAt);
+  });
+
+  it('rejects missing and invalid notification sessions', () => {
+    expect(handleRequest('GET', '/members/m-1/notifications')).toEqual({
+      status: 401,
+      body: { error: 'unauthorized' },
+    });
+    expect(handleRequest('GET', '/members/m-1/notifications', undefined, { authorization: 'Bearer not-a-token' })).toEqual({
+      status: 401,
+      body: { error: 'unauthorized' },
+    });
+  });
+
+  it('refuses another member reading loan return reminders', () => {
+    const created = handleRequest('POST', '/loans', { bookId: 'b-1', memberId: 'm-2' }, authHeaders('m-2'));
+    loanFrom(created.body).dueAt = todayIsoDate(5);
+    expect(handleRequest('GET', '/members/m-2/notifications', undefined, authHeaders('m-1'))).toEqual({
+      status: 403,
+      body: { error: 'forbidden' },
+    });
   });
 
   it('checks out a copy for 60 days and decrements availability', () => {
@@ -777,5 +828,42 @@ describe('desk authentication', () => {
     expect(control(window, '#loans').querySelector('li')).toBeNull();
     expect(control(window, '#loans-empty').hidden).toBe(false);
     expect(control(window, '#loans-empty').textContent).toBe('No current loans.');
+  });
+
+  it('shows a loan return reminder beside the active loan', async () => {
+    const created = handleRequest('POST', '/loans', { bookId: 'b-1', memberId: 'm-2' }, authHeaders('m-2'));
+    const loan = loanFrom(created.body);
+    loan.dueAt = todayIsoDate(3);
+    const notifications = handleRequest('GET', '/members/m-2/notifications', undefined, authHeaders('m-2'));
+    const reminder = (notifications.body as { notifications: Array<{ message: string; kind: string }> }).notifications.find(
+      (notification) => notification.kind === 'loan_reminder',
+    );
+
+    const { window, calls } = openDesk(() => sessionFor('m-2', 'alan'));
+    field(window, '#signin-username').value = 'alan';
+    field(window, '#signin-password').value = 'secretpass123';
+    await submitForm(window, '#signin-form');
+
+    const bearer = /^Bearer [0-9a-f]{64}$/;
+    for (const pathname of [
+      '/members/m-2/loans',
+      '/members/m-2/holds',
+      '/members/m-2/reservations',
+      '/members/m-2/notifications',
+    ]) {
+      const call = calls.find((entry) => entry.method === 'GET' && entry.pathname === pathname);
+      expect(call?.headers.Authorization).toMatch(bearer);
+    }
+    const loans = control(window, '#loans');
+    expect(loans.textContent).toContain('The Odyssey');
+    expect(loans.innerHTML).toContain(`Due ${loan.dueAt}`);
+    expect(loans.textContent).toContain('3 days remaining');
+    expect(loans.textContent).toContain(reminder?.message);
+    expect(loans.innerHTML).toContain('>Return</button>');
+
+    control(window, '#signout-btn').click();
+    await settle(window);
+    expect(control(window, '#loans').innerHTML).toBe('');
+    expect(control(window, '#patron-activity').hidden).toBe(true);
   });
 });
