@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { todayIsoDate } from '../src/holds.js';
 import { handleRequest } from '../src/http.js';
 import { availableCopies, checkout, getLoan, listLoansForMember, resetLoansForTests, returnLoan } from '../src/loans.js';
 import { authHeaders } from './session.js';
@@ -31,6 +32,14 @@ describe('loans', () => {
     expect(loan.memberId).toBe('m-1');
     expect(availableCopies('b-2')).toBe(0);
     expect(listLoansForMember('m-1')).toHaveLength(1);
+  });
+
+  it('assigns a 60-day due date on direct checkout', () => {
+    resetLoansForTests();
+    const loan = checkout({ bookId: 'b-2', memberId: 'm-1' });
+    expect(loan.checkedOutAt).toBe(todayIsoDate(0));
+    expect(loan.dueAt).toBe(todayIsoDate(60));
+    expect(availableCopies('b-2')).toBe(0);
   });
 
   it('refuses checkout when no copies remain', () => {

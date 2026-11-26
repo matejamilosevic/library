@@ -64,12 +64,12 @@ describe('holds', () => {
     });
   });
 
-  it('checks out an available book for 21 days and restores availability on return (AC-003, AC-004)', () => {
+  it('checks out an available book for 60 days and restores availability on return (AC-003, AC-004)', () => {
     expect(availableCopies('b-1')).toBe(2);
     const created = handleRequest('POST', '/loans', { bookId: 'b-1', memberId: 'm-1' }, authHeaders('m-1'));
     expect(created.status).toBe(201);
     const loan = loanFrom(created);
-    expect(loan.dueAt).toBe(todayIsoDate(21));
+    expect(loan.dueAt).toBe(todayIsoDate(60));
     expect(availableCopies('b-1')).toBe(1);
 
     const returned = handleRequest('POST', `/loans/${loan.id}/return`, undefined, authHeaders('m-1'));

@@ -151,11 +151,22 @@ function renderCatalog(books) {
   }).join('');
 }
 
+function daysRemainingUntil(dueAt) {
+  var today = new Date().toISOString().slice(0, 10);
+  var dueMs = Date.parse(dueAt + 'T00:00:00.000Z');
+  var todayMs = Date.parse(today + 'T00:00:00.000Z');
+  return Math.round((dueMs - todayMs) / 86400000);
+}
+
 function renderLoans(loans, books) {
   var active = loans.filter(function (loan) { return loan.returnedAt === null; });
   loansEmpty.hidden = active.length > 0;
   loansEl.innerHTML = active.map(function (loan) {
-    return '<li data-loan-id="' + loan.id + '"><span class="loan-title">' + escapeHtml(bookTitle(books, loan.bookId)) + '</span><span class="due">Due ' + loan.dueAt + '</span><button type="button" data-action="return" data-loan-id="' + loan.id + '">Return</button></li>';
+    var daysRemaining = daysRemainingUntil(loan.dueAt);
+    var status = daysRemaining > 0
+      ? '<span class="remaining">' + daysRemaining + ' days remaining</span>'
+      : '<span class="overdue">Overdue</span>';
+    return '<li data-loan-id="' + loan.id + '"><span class="loan-title">' + escapeHtml(bookTitle(books, loan.bookId)) + '</span><span class="due">Due ' + loan.dueAt + '</span>' + status + '<button type="button" data-action="return" data-loan-id="' + loan.id + '">Return</button></li>';
   }).join('');
 }
 
