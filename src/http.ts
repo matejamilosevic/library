@@ -1,6 +1,13 @@
 import { findBookByIsbn, getBook, listBooks } from './catalog.js';
 import { listHoldsForMember, listNotificationsForMember, placeHold } from './holds.js';
-import { availableCopies, checkout, getLoan, listLoansForMember, returnLoan } from './loans.js';
+import {
+  availableCopies,
+  checkout,
+  getLoan,
+  listLoanNotificationsForMember,
+  listLoansForMember,
+  returnLoan,
+} from './loans.js';
 import { renderDeskHtml } from './desk.js';
 import {
   checkRateLimit,
@@ -299,7 +306,9 @@ export function handleRequest(
   if (method === 'GET' && memberNotifications) {
     return readOwnActivity(headers, memberNotifications[1] ?? '', (id) => ({
       status: 200,
-      body: { notifications: listNotificationsForMember(id) },
+      body: {
+        notifications: [...listNotificationsForMember(id), ...listLoanNotificationsForMember(id)],
+      },
     }));
   }
 

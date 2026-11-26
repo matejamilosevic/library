@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { todayIsoDate } from '../src/holds.js';
 import { handleRequest } from '../src/http.js';
-import { availableCopies, checkout, getLoan, listLoansForMember, resetLoansForTests, returnLoan } from '../src/loans.js';
+import {
+  availableCopies,
+  checkout,
+  getLoan,
+  listLoanNotificationsForMember,
+  listLoansForMember,
+  processLoanReturnReminders,
+  resetLoansForTests,
+  returnLoan,
+} from '../src/loans.js';
 import { authHeaders } from './session.js';
 import { getReservation } from '../src/reservations.js';
 
@@ -13,6 +22,12 @@ function reservationFrom(body: unknown): ReservationView {
 
 function loanIdFrom(body: unknown): string {
   return (body as { loan: { id: string } }).loan.id;
+}
+
+function daysBefore(dueAt: string, days: number): string {
+  const date = new Date(`${dueAt}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
 }
 
 describe('loans', () => {
@@ -89,5 +104,74 @@ describe('loans', () => {
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject({ loan: { bookId: 'b-2', memberId: 'm-2', returnedAt: null } });
     expect(getReservation(reservation.id)?.status).toBe('fulfilled');
+  });
+
+  it('issues a loan return reminder at 10, 5, 3, and 1 day before the due date', () => {
+    resetLoansForTests();
+    const loan = checkout({ bookId: 'b-1', memberId: 'm-1' });
+    const expectedCounts: Array<[number, number]> = [
+      [11, 0],
+      [10, 1],
+      [5, 2],
+      [3, 3],
+      [1, 4],
+      [0, 4],
+    ];
+
+    for (const [days, expected] of expectedCounts) {
+      processLoanReturnReminders(daysBefore(loan.dueAt, days));
+      expect(listLoanNotificationsForMember('m-1')).toHaveLength(expected);
+    }
+
+    for (const thresholdDays of [10, 5, 3, 1] as const) {
+      const match = listLoanNotificationsForMember('m-1').find(
+        (notification) => notification.thresholdDays === thresholdDays,
+      );
+      expect(match).toMatchObject({
+        kind: 'loan_reminder',
+        loanId: loan.id,
+        bookId: 'b-1',
+        dueAt: loan.dueAt,
+        thresholdDays,
+      });
+      expect(match?.message).toContain(loan.dueAt);
+      expect(match?.message.toLowerCase()).toContain('return');
+    }
+  });
+
+  it('suppresses reminders for a returned loan and keeps an earlier reminder', () => {
+    resetLoansForTests();
+    const returned = checkout({ bookId: 'b-2', memberId: 'm-1' });
+    returnLoan(returned.id);
+    for (const days of [10, 5, 3, 1]) {
+      processLoanReturnReminders(daysBefore(returned.dueAt, days));
+    }
+    expect(listLoanNotificationsForMember('m-1')).toEqual([]);
+
+    resetLoansForTests();
+    const active = checkout({ bookId: 'b-1', memberId: 'm-1' });
+    processLoanReturnReminders(daysBefore(active.dueAt, 10));
+    returnLoan(active.id);
+    for (const days of [5, 3, 1]) {
+      processLoanReturnReminders(daysBefore(active.dueAt, days));
+    }
+    const reminders = listLoanNotificationsForMember('m-1');
+    expect(reminders).toHaveLength(1);
+    expect(reminders[0]?.thresholdDays).toBe(10);
+  });
+
+  it('keeps a single reminder when the same threshold is evaluated repeatedly', () => {
+    resetLoansForTests();
+    const loan = checkout({ bookId: 'b-1', memberId: 'm-1' });
+    const tenDaysBefore = daysBefore(loan.dueAt, 10);
+    processLoanReturnReminders(tenDaysBefore);
+    processLoanReturnReminders(tenDaysBefore);
+    processLoanReturnReminders(tenDaysBefore);
+    listLoansForMember('m-1');
+    listLoanNotificationsForMember('m-1');
+    const reminders = listLoanNotificationsForMember('m-1').filter(
+      (notification) => notification.loanId === loan.id && notification.thresholdDays === 10,
+    );
+    expect(reminders).toHaveLength(1);
   });
 });
